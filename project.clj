@@ -7,7 +7,8 @@
                  [org.clojure/data.json "0.2.2"]
                  [org.apache.kafka/kafka_2.10 "0.8.2.1"]
                  [org.apache.kafka/kafka-clients "0.8.2.1"]
-                 [zookeeper-clj "0.9.3"]]
+                 [zookeeper-clj "0.9.3"]
+                 [org.scala-lang/scala-library "2.10.5"]]
   :exclusions [javax.mail/mail
                javax.jms/jms
                com.sun.jdmk/jmxtools

@@ -2,7 +2,7 @@
   (:import [java.nio ByteBuffer]
            [java.util Properties]
            [kafka.message MessageAndMetadata MessageAndOffset]
-           [kafka.javaapi PartitionMetadata TopicMetadata TopicMetadataResponse ConsumerMetadataResponse OffsetFetchResponse]
+           [kafka.javaapi PartitionMetadata TopicMetadata TopicMetadataResponse ConsumerMetadataResponse OffsetFetchResponse OffsetCommitResponse]
            [kafka.cluster Broker]
            ))
 
@@ -67,8 +67,15 @@
 
   OffsetFetchResponse
   (to-clojure [x]
-    (println x)
     (into {} (for [[k v] (.offsets x)] [(str (.topic k) ":" (.partition k)) v])))
+
+  OffsetCommitResponse
+  (to-clojure [x]
+    (println x)
+    (if (.hasError x)
+      {:has-error true
+       :errors (into {} (for [[k v] (.errors x)] [(str (.topic k) ":" (.partition k)) v]))}
+      {:has-error false}))
 
   ConsumerMetadataResponse
   (to-clojure [x]

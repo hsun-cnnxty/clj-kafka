@@ -8,6 +8,7 @@
                  [org.apache.kafka/kafka_2.10 "0.8.2.1"]
                  [org.apache.kafka/kafka-clients "0.8.2.1"]
                  [zookeeper-clj "0.9.3"]
+                 [com.101tec/zkclient "0.5"]
                  [org.scala-lang/scala-library "2.10.5"]]
   :exclusions [javax.mail/mail
                javax.jms/jms

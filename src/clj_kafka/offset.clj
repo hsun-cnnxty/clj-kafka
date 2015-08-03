@@ -1,6 +1,7 @@
 (ns ^{:doc "Offset operations."}
   clj-kafka.offset
-  (:require [clj-kafka.core :refer [as-properties to-clojure]]
+  (:require [clojure.tools.logging :as log]
+            [clj-kafka.core :refer [as-properties to-clojure]]
             [clj-kafka.zk :refer [partitions]])
   (:import [kafka.common TopicAndPartition OffsetAndMetadata]
            [kafka.javaapi OffsetFetchResponse ConsumerMetadataResponse OffsetCommitResponse]
@@ -35,7 +36,7 @@
 
 (defn send-channel-message
   [^BlockingChannel channel ^RequestOrResponse message]
-  (println message)
+  (log/debug message)
   (.send channel message))
 
 (defn topic-metadata-request
@@ -62,13 +63,11 @@
         metadata-req (consumer-metadata-request group-id client-id)]
         (send-channel-message channel-attempt metadata-req)
         (let [meta-response (to-clojure (ConsumerMetadataResponse/readFrom (.buffer (.receive channel-attempt))))]
-          (println meta-response)
           (if-let [no-error (= (kafka.common.ErrorMapping/NoError) (:error-code meta-response))]
             (if-let [same-channel (and (= host (.host (:coordinator meta-response))) (= port (.port (:coordinator meta-response))))]
               channel-attempt
               (let [coordinator (:coordinator meta-response)
                          new-host (.host coordinator) new-port (.port coordinator)]
-                     (println "Different channel" new-host new-port)
                      (.disconnect channel-attempt)
                      (blocking-channel new-host new-port)))
             (throw (RuntimeException. (str meta-response))))
@@ -96,7 +95,7 @@
     (let [offset-fetch-req (offset-fetch-request group-id topic max-partition client-id)]
       (send-channel-message offset-manager offset-fetch-req)
       (let [offset-fetch-resp (to-clojure (OffsetFetchResponse/readFrom (.buffer (.receive offset-manager))))]
-        (println "fetch-consumer-offsets-response: " offset-fetch-resp)
+        (log/debug "fetch-consumer-offsets-response: " offset-fetch-resp)
         offset-fetch-resp)
     )))
 
@@ -121,22 +120,6 @@
     (let [offset-commit-req (offset-commit-request group-id client-id topic max-partition new-offset)]
       (send-channel-message offset-manager offset-commit-req)
       (let [offset-commit-resp (to-clojure (OffsetCommitResponse/readFrom (.buffer (.receive offset-manager))))]
-        (println "reset-consumer-offsets-response: " offset-commit-resp)
+        (log/debug "reset-consumer-offsets-response: " offset-commit-resp)
         offset-commit-resp)
       )))
-
-(defn -main [& args]
-  (let [group-id "ccm.transaction.consumer.esg-prod.red6_2"
-        topic "display_prod.transactions.script.synthetic"
-        zk-config {"zookeeper.connect" "kafka001.prod1.connexity.net:2181/kafka/esg-stream"}
-        broker-config "kafka002.prod1.connexity.net:9092"
-        partition-count (find-topic-partition-count zk-config topic)
-        offsets (fetch-consumer-offsets broker-config zk-config topic group-id)
-        reseted-offsets (reset-consumer-offsets broker-config zk-config topic group-id 888)
-        new-offsets (fetch-consumer-offsets broker-config zk-config topic group-id)
-        ]
-    (println "0" partition-count)
-    (println "1" offsets)
-    (println "2" reseted-offsets)
-    (println "3" new-offsets)
-    ))

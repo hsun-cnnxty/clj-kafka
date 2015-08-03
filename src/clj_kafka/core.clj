@@ -71,7 +71,6 @@
 
   OffsetCommitResponse
   (to-clojure [x]
-    (println x)
     (if (.hasError x)
       {:has-error true
        :errors (into {} (for [[k v] (.errors x)] [(str (.topic k) ":" (.partition k)) v]))}

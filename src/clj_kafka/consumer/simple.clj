@@ -1,4 +1,5 @@
 (ns clj-kafka.consumer.simple
+  (:require [clojure.tools.logging :as log])
   (:use [clj-kafka.core :only (to-clojure)])
   (:import [kafka.javaapi.consumer SimpleConsumer]
            [kafka.api FetchRequest FetchRequestBuilder PartitionOffsetRequestInfo]
@@ -37,6 +38,8 @@
         pori (PartitionOffsetRequestInfo. (offset-position op) 1)
         hm    (java.util.HashMap. {tp pori})]
     (let [response  (.getOffsetsBefore consumer (OffsetRequest. hm (kafka.api.OffsetRequest/CurrentVersion) "clj-kafka-id"))]
+      ;(clojure.pprint/pprint hm)
+      ;(clojure.pprint/pprint response)
       (first (.offsets response topic partition)))))
 
 (defn latest-topic-offset [consumer topic partition]

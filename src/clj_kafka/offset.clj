@@ -2,6 +2,7 @@
   clj-kafka.offset
   (:require [clojure.tools.logging :as log]
             [clj-kafka.core :refer [as-properties to-clojure]]
+            [clj-kafka.consumer.simple :refer [topic-offset consumer]]
             [clj-kafka.zk :refer [partitions]])
   (:import [kafka.common TopicAndPartition OffsetAndMetadata]
            [kafka.javaapi OffsetFetchResponse ConsumerMetadataResponse OffsetCommitResponse]
@@ -10,7 +11,7 @@
            (scala.collection JavaConversions)
            (scala.collection.mutable ArrayBuffer)))
 
-(def DEFAULT_CLIENT_ID "")
+(def DEFAULT_CLIENT_ID "clj-kafka-id")
 
 (defn parse-int [s]
   (Integer. (re-find  #"\d+" s )))
@@ -36,7 +37,7 @@
 
 (defn send-channel-message
   [^BlockingChannel channel ^RequestOrResponse message]
-  (log/debug message)
+  (log/debug "Sending channel msg --> " message)
   (.send channel message))
 
 (defn topic-metadata-request
@@ -95,31 +96,50 @@
     (let [offset-fetch-req (offset-fetch-request group-id topic max-partition client-id)]
       (send-channel-message offset-manager offset-fetch-req)
       (let [offset-fetch-resp (to-clojure (OffsetFetchResponse/readFrom (.buffer (.receive offset-manager))))]
-        (log/debug "fetch-consumer-offsets-response: " offset-fetch-resp)
+        ;(log/debug "fetch-consumer-offsets-response: " offset-fetch-resp)
         offset-fetch-resp)
     )))
 
-(defn offset-commit-request [group-id client-id topic max-partition new-offset]
+(defn offset-commit-request [group-id client-id topic new-offsets]
   (let [commit-request-version 1
         correlation-id 1
         now (System/currentTimeMillis)
-        topic-partition-java (map (fn [i] (TopicAndPartition. topic i)) (range 0 max-partition))
-        topic-partition-offsets (java.util.HashMap. (into {} (for [tp topic-partition-java] [tp (OffsetAndMetadata. new-offset "" now)])))
+        topic-partition-java (map (fn [i] (TopicAndPartition. topic i)) (range 0 (count new-offsets)))
+        ignore  (log/error "new offset: " new-offsets)
+        topic-partition-offsets (java.util.HashMap. (into {} (for [tp topic-partition-java] [tp (OffsetAndMetadata. (nth new-offsets (.partition tp)) "" now)])))
         emptyMap (JavaConversions/mapAsScalaMap topic-partition-offsets)
         topic-partition-offsets-scala (.$plus$plus (scala.collection.immutable.HashMap.) emptyMap)
         ]
     (OffsetCommitRequest. group-id topic-partition-offsets-scala commit-request-version correlation-id client-id -1 "")))
 
-(defn reset-consumer-offsets
-  ([broker-config zk-config topic group-id new-offset]
+(defn reset-consumer-offsets [broker-config zk-config topic group-id new-offset-type]
    (let [offset-manager (find-offset-manager broker-config group-id)
-         max-partition (find-topic-partition-count zk-config topic)]
-     (reset-consumer-offsets offset-manager topic group-id DEFAULT_CLIENT_ID max-partition new-offset)))
+         bk-host-port-pair (.split broker-config ":" 2)
+         bk-host (nth bk-host-port-pair 0)
+         bk-port (parse-int (nth bk-host-port-pair 1))
+         consumer (consumer bk-host bk-port DEFAULT_CLIENT_ID)
+         max-partition (find-topic-partition-count zk-config topic)
+         new-offsets (map (fn [i] (topic-offset consumer topic i new-offset-type)) (range 0 max-partition))
+         offset-commit-req (offset-commit-request group-id DEFAULT_CLIENT_ID topic new-offsets)
+         ]
+     (send-channel-message offset-manager offset-commit-req)
+     (let [offset-commit-resp (to-clojure (OffsetCommitResponse/readFrom (.buffer (.receive offset-manager))))]
+       ;(log/debug "reset-consumer-offsets-response: " offset-commit-resp)
+       new-offsets)))
 
-  ([offset-manager topic group-id client-id max-partition new-offset]
-    (let [offset-commit-req (offset-commit-request group-id client-id topic max-partition new-offset)]
-      (send-channel-message offset-manager offset-commit-req)
-      (let [offset-commit-resp (to-clojure (OffsetCommitResponse/readFrom (.buffer (.receive offset-manager))))]
-        (log/debug "reset-consumer-offsets-response: " offset-commit-resp)
-        offset-commit-resp)
-      )))
+
+(defn -main [& args]
+  (let [group-id "dev.esg.ccm.transaction.consumer"
+        topic "dev.display.transactions.rtd.api"
+        zk-config {"zookeeper.connect" "kafkastage001.sl1.shopzilla.seastg:2181/kafka/seastg-stream"}
+        broker-config "kafkastage001.sl1.shopzilla.seastg:9092"
+        partition-count (find-topic-partition-count zk-config topic)
+        offsets (fetch-consumer-offsets broker-config zk-config topic group-id)
+        reseted-offsets (reset-consumer-offsets broker-config zk-config topic group-id :earliest)
+        new-offsets (fetch-consumer-offsets broker-config zk-config topic group-id)
+        ]
+    (println "0" partition-count)
+    (println "1" offsets)
+    (println "2" reseted-offsets)
+    (println "3" new-offsets)
+    ))

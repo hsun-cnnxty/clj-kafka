@@ -22,6 +22,7 @@
   :codox {:src-dir-uri "http://github.com/pingles/clj-kafka/blob/master/"
           :src-linenum-anchor-prefix "L"          
           :defaults {:doc/format :markdown}}
-  :profiles {:dev {:dependencies [[commons-io/commons-io "2.4"]
+  :profiles {:dev {:resource-paths ["dev-resources"]
+                   :dependencies [[commons-io/commons-io "2.4"]
                                   [expectations "1.4.45"]]}}
   :description "Clojure wrapper for Kafka's Java API")

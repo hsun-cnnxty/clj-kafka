@@ -50,7 +50,7 @@
   ([topic correlation-id client-id] (TopicMetadataRequest. (TopicMetadataRequest/CurrentVersion) correlation-id client-id (ArrayBuffer. topic))))
 
 (defn find-topic-partition-count [zk-config topic]
-  (let [topic-partitions (partitions zk-config topic)]
+  (let [topic-partitions (partitions {"zookeeper.connect" zk-config}  topic)]
       (.count topic-partitions)))
 
 (defn- consumer-metadata-request
@@ -134,4 +134,4 @@
      (send-channel-message offset-manager offset-commit-req)
      (let [offset-commit-resp (to-clojure (OffsetCommitResponse/readFrom (.buffer (.receive offset-manager))))]
        (log/debug "reset-consumer-offsets-response: " offset-commit-resp)
-       new-offsets)))
+       offset-commit-resp)))
